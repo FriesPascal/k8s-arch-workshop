@@ -1,0 +1,11 @@
+kubernetes_worker_pod_cidr: "10.32.128.0/17"
+kubernetes_worker_dns: "10.32.0.10"
+kubernetes_worker_node_name: "{{ ansible_host }}"
+kubernetes_worker_version: "1.29.2"
+kubernetes_worker_kubelet_ca_cert_file: ""
+kubernetes_worker_kubelet_cert_file: ""
+kubernetes_worker_kubelet_key_file: ""
+kubernetes_worker_kubelet_kubeconfig_file: ""
+kubernetes_worker_kube_proxy_kubeconfig_file: ""
+kubernetes_worker_configure_cni: true
+kubernetes_worker_local_pod_cidr: "10.32.128.0/24"

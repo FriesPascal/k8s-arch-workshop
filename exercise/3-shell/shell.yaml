@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-shell
+  namespace: clt-0
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: shell
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: shell
+    spec:
+      automountServiceAccountToken: false
+      hostname: kubernetes-super-admin
+      securityContext:
+        fsGroup: 12345
+        runAsUser: 12345
+        runAsGroup: 12345
+      initContainers:
+        - name: setup-kubeconfig
+          image: bitnami/kubectl:latest
+          env:
+            - name: KUBECONFIG
+              value: /var/run/kubernetes/config
+          command:
+            - bash
+            - -c
+            - |
+                kubectl config set-credentials default \
+                    --client-key=/etc/kubernetes/tls.key \
+                    --client-certificate=/etc/kubernetes/tls.crt \
+                    --embed-certs=true
+                kubectl config set-cluster default \
+                    --certificate-authority=/etc/kubernetes/ca.crt \
+                    --server=https://kube-apiserver:443 \
+                    --embed-certs=true
+                kubectl config set-context default \
+                    --user=default \
+                    --cluster=default
+                kubectl config use-context default
+          volumeMounts:
+            - name: client-certs
+              mountPath: /etc/kubernetes
+            - name: temp
+              mountPath: /var/run/kubernetes
+      containers:
+        - name: shell
+          image: bitnami/kubectl:latest
+          env:
+            - name: KUBECONFIG
+              value: /etc/kubernetes/admin.conf
+          command:
+            - bash
+            - -c
+            - sleep infinity
+          volumeMounts:
+            - name: temp
+              mountPath: /etc/kubernetes/admin.conf
+              subPath: config
+      restartPolicy: Always
+      volumes:
+        - name: client-certs
+          secret:
+            secretName: kubernetes-super-admin
+        - name: temp
+          emptyDir: {}

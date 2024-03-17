@@ -1,0 +1,22 @@
+[Unit]
+Description=kube scheduler
+Documentation=https://kubernetes.io
+After=network.target
+
+[Service]
+ExecStart=kube-scheduler \
+    --bind-address=0.0.0.0 \
+    --config=/etc/kubernetes/scheduler-config.yaml \
+    --secure-port=10259 \
+    --v=2
+Restart=always
+RestartSec=5
+Delegate=yes
+KillMode=process
+OOMScoreAdjust=-999
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

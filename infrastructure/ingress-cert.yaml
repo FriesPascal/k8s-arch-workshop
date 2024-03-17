@@ -1,0 +1,37 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt
+  namespace: kube-system
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: fries@atix.de
+    privateKeySecretRef:
+      name: letsencrypt
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingress-nginx-default-cert
+  namespace: kube-system
+spec:
+  commonName: k8sthw-pascal-local-dev.atix-training.de
+  secretName: ingress-nginx-default-cert
+  duration: 720h0m0s
+  renewBefore: 120h0m0s
+  dnsNames:
+    - "k8sthw-pascal-local-dev.atix-training.de"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+  issuerRef:
+    name: letsencrypt
+    kind: Issuer
+    group: cert-manager.io

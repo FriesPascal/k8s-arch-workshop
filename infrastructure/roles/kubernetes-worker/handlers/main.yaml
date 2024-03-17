@@ -1,0 +1,9 @@
+- name: Restart kubernetes worker
+  become: true
+  service:
+    name: "{{ item }}"
+    state: "restarted"      
+    daemon_reload: true
+  loop:
+    - kubelet
+    - kube-proxy

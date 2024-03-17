@@ -1,0 +1,182 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: clt-0
+spec:
+  ports:
+    - name: client-http
+      targetPort: client-http
+      port: 2378
+    - name: client-grpc
+      targetPort: client-grpc
+      port: 2379
+    - name: metrics
+      targetPort: metrics
+      port: 2381
+  selector:
+    app.kubernetes.io/component: etcd
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd-hl
+  namespace: clt-0
+spec:
+  clusterIP: None
+  ports:
+    - name: etcd-client-ssl
+      targetPort: client-grpc
+      port: 2379
+    - name: etcd-server-ssl
+      targetPort: peer
+      port: 2380
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: etcd
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+  namespace: clt-0
+spec:
+  replicas: 1
+  serviceName: etcd-hl
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: etcd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: etcd
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: wait-for-dns
+          image: busybox:1.28
+          securityContext:
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: SERVICE_NAME
+              value: etcd-hl
+          command:
+            - sh
+            - -c
+            - |
+                echo "Checking CoreDNS records for $POD_NAME.$SERVICE_NAME..."
+                while true; do
+                    sleep 10
+                    nslookup $POD_NAME.$SERVICE_NAME | grep $POD_NAME && break
+                    echo "..."
+                done
+      containers:
+        - name: etcd
+          image: gcr.io/etcd-development/etcd:v3.5.12
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              add: [NET_BIND_SERVICE]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: SERVICE_NAME
+              value: etcd-hl
+            - name: ETCDCTL_DISCOVERY_SRV
+              value: etcd-hl
+            - name: ETCDCTL_CACERT
+              value: /etc/etcd/client-certs/ca.crt
+            - name: ETCDCTL_CERT
+              value: /etc/etcd/client-certs/tls.crt
+            - name: ETCDCTL_KEY
+              value: /etc/etcd/client-certs/tls.key
+            - name: ETCDCTL_API
+              value: "3"
+          command:
+            - etcd
+            # general settings
+            - --name=$(POD_NAME)
+            - --data-dir=/var/lib/etcd/data
+            - --initial-cluster-token=$(SVC_NAME)
+            # settings for client to server communication
+            - --listen-client-http-urls=https://0.0.0.0:2378
+            - --listen-client-urls=https://0.0.0.0:2379
+            - --advertise-client-urls=https://$(POD_NAME).$(SERVICE_NAME):2379
+            - --client-cert-auth
+            - --trusted-ca-file=/etc/etcd/client-certs/ca.crt
+            - --cert-file=/etc/etcd/client-certs/tls.crt
+            - --key-file=/etc/etcd/client-certs/tls.key
+            # settings for server to server communication
+            - --listen-peer-urls=https://0.0.0.0:2380 
+            - --initial-advertise-peer-urls=https://$(POD_NAME).$(SERVICE_NAME):2380
+            - --peer-client-cert-auth
+            - --peer-trusted-ca-file=/etc/etcd/peer-certs/ca.crt
+            - --peer-cert-file=/etc/etcd/peer-certs/tls.crt
+            - --peer-key-file=/etc/etcd/peer-certs/tls.key
+            #- --initial-cluster=$(POD_NAME)=https://$(POD_NAME).$(SERVICE_NAME):2380
+            # settings for monitoring and probes
+            - --listen-metrics-urls=http://0.0.0.0:2381
+          ports:
+            - name: client-http
+              containerPort: 2378
+            - name: client-grpc
+              containerPort: 2379
+            - name: peer
+              containerPort: 2380
+            - name: metrics
+              containerPort: 2381
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 1
+            successThreshold: 1
+            httpGet:
+              scheme: HTTP
+              port: metrics
+              path: /health
+          livenessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 3
+            successThreshold: 1
+            httpGet:
+              scheme: HTTP
+              port: metrics
+              path: /health
+          volumeMounts:
+            - name: client-certs
+              mountPath: /etc/etcd/client-certs
+            - name: peer-certs
+              mountPath: /etc/etcd/peer-certs
+            - name: data
+              mountPath: /var/lib/etcd/data
+      restartPolicy: Always
+      volumes:
+        - name: client-certs
+          secret:
+            secretName: kube-etcd
+        - name: peer-certs
+          secret:
+            secretName: kube-etcd-peer
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 3Gi

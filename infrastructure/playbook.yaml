@@ -1,0 +1,28 @@
+---
+- name: Wait for connectivity
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Waiting up to 7.5 min until SSH becomes available
+      ansible.builtin.wait_for_connection:
+        delay: 0
+        sleep: 10
+        timeout: 450
+
+- name: Setup loadbalancing
+  hosts: nat_gateway
+  roles:
+    - role: haproxy
+      
+- name: Bootstrap controlplane
+  hosts: controlplanes
+  roles:
+    - role: etcd 
+    - role: kubernetes     
+
+- name: Join workers
+  hosts: workers
+  roles:
+    - role: containerd
+    - role: kubernetes-worker     
+...

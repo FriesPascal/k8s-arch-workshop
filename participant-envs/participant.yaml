@@ -1,0 +1,177 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: PARTICIPANT
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: PARTICIPANT
+  namespace: PARTICIPANT
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: PARTICIPANT
+  namespace: PARTICIPANT
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: PARTICIPANT
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: PARTICIPANT
+  namespace: PARTICIPANT
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      participant: PARTICIPANT
+  template:
+    metadata:
+      labels:
+        participant: PARTICIPANT
+    spec:
+      automountServiceAccountToken: true
+      serviceAccountName: PARTICIPANT
+      hostname: k8s-arch
+      volumes:
+      - name: home
+        persistentVolumeClaim:
+          claimName: PARTICIPANT
+      containers:
+      - image: wettyoss/wetty
+        envFrom:
+        - secretRef: 
+            name: PARTICIPANT-ssh-credentials
+        args:
+        - --base=/PARTICIPANT
+        - --force-ssh
+        - --ssh-host=localhost
+        - --ssh-port=22
+        - --ssh-user=$(USERNAME)
+        - --ssh-auth=password
+        - --known-hosts=/dev/null
+        name: ssh-client
+        ports:
+        - containerPort: 3000
+      - image: debian:bookworm
+        envFrom:
+        - secretRef: 
+            name: PARTICIPANT-ssh-credentials
+        command:
+        - bash
+        - -c
+        - |
+            # setup user
+            groupadd -g 2024 $(USERNAME)
+            useradd -m -s /bin/bash -u 2024 -g 2024 $(USERNAME)
+            echo -e "$(PASSWORD)\n$(PASSWORD)" | passwd $(USERNAME)
+            usermod -aG sudo $(USERNAME)
+            # setup packages
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y sudo curl jq zip unzip vim nano git openssh-server
+            # install kubectl
+            curl -o /usr/local/bin/kubectl -L https://dl.k8s.io/v1.29.3/bin/linux/386/kubectl
+            chmod +x /usr/local/bin/kubectl
+            # setup kubeconfig
+            mkdir -p /home/$(USERNAME)/.kube
+            export KUBECONFIG=/home/$(USERNAME)/.kube/config
+            kubectl config set-credentials default --token=`cat /var/run/secrets/kubernetes.io/serviceaccount/token`
+            kubectl config set-cluster default --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt --server=https://k8sthw-pascal-local-dev.atix-training.de:6443 --embed-certs=true
+            kubectl config set-context default --user=default --cluster=default --namespace=$(USERNAME)
+            kubectl config use-context default
+            chown 2024:2024 $KUBECONFIG
+            # run sshd
+            mkdir -p /run/sshd
+            /usr/sbin/sshd -D  
+        name: ssh-server
+        ports:
+        - containerPort: 22
+        startupProbe:
+          tcpSocket:
+            port: 22
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12
+        livenessProbe:
+          tcpSocket:
+            port: 22
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          tcpSocket:
+            port: 22
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        volumeMounts:
+        - name: home
+          mountPath: /home
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  name: PARTICIPANT 
+  namespace: PARTICIPANT
+spec:
+  rules:
+  - host: k8sthw-pascal-local-dev.atix-training.de
+    http:
+      paths:
+      - backend:
+          service:
+            name: PARTICIPANT
+            port:
+              number: 80
+        path: /PARTICIPANT
+        pathType: Prefix
+  tls:
+  - hosts:
+    - k8sthw-pascal-local-dev.atix-training.de
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: PARTICIPANT-ssh-credentials
+  namespace: PARTICIPANT
+stringData:
+  USERNAME: PARTICIPANT
+  PASSWORD: t3mp0r4ry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: PARTICIPANT
+  namespace: PARTICIPANT
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    participant: PARTICIPANT
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: PARTICIPANT
+  namespace: PARTICIPANT
+spec:
+  accessModes:
+  - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 500Mi

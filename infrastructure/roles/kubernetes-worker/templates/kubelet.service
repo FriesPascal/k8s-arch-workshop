@@ -1,0 +1,19 @@
+[Unit]
+Description=kubelet
+Documentation=https://kubernetes.io
+After=containerd.service
+Requires=containerd.service
+
+[Service]
+ExecStart=kubelet \
+  --config=/etc/kubernetes/kubelet-config.yaml \
+  --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \
+  --hostname-override={{ kubernetes_worker_node_name }} \
+  --kubeconfig=/etc/kubernetes/kubelet.conf \
+  --register-node=true \
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

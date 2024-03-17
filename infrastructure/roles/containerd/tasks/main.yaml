@@ -1,0 +1,85 @@
+---
+- name: Download runc
+  become: true
+  get_url:
+    force: true
+    url: "https://github.com/opencontainers/runc/releases/download/v{{ containerd_runc_version }}/runc.amd64"
+    dest: "/usr/local/bin/runc"
+    mode: "0755"
+    owner: "root"
+    group: "root"
+
+- name: Download binary archives
+  get_url:
+    force: true
+    url: "{{ item.url }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/v{{ containerd_crictl_version }}/crictl-v{{ containerd_crictl_version }}-linux-amd64.tar.gz"
+      dest: "/tmp/crictl.tar.gz"
+    - url: "https://github.com/containernetworking/plugins/releases/download/v{{ containerd_cni_version }}/cni-plugins-linux-amd64-v{{ containerd_cni_version }}.tgz"
+      dest: "/tmp/cni-plugins.tar.gz"
+    - url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+      dest: "/tmp/containerd.tar.gz"
+
+- name: Ensure existence of cni dir
+  become: true
+  file:
+    state: "directory"
+    path: "/opt/cni/bin"
+    recurse: true
+    owner: "root"
+    group: "root"
+
+- name: Extract archived binaries
+  become: true
+  unarchive:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    extra_opts: "{{ item.extra_opts | default('') }}"
+    owner: "root"
+    group: "root"
+  loop:
+    - src: "/tmp/crictl.tar.gz"
+      dest: "/usr/local/bin/"
+    - src: "/tmp/containerd.tar.gz"
+      extra_opts: ["--strip-components=1"]
+      dest: "/bin/"
+    - src: "/tmp/cni-plugins.tar.gz"
+      dest: "/opt/cni/bin/"
+  notify:
+    - "Restart containerd"
+
+- name: Prepare containerd config dir
+  become: true
+  file:
+    state: "directory"
+    path: "/etc/containerd"
+    owner: "root"
+    group: "root"
+
+- name: Template containerd config files
+  become: true
+  template:
+    src: "{{ item.src }}"
+    dest: "/etc/{{ item.dest }}"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  loop:
+    - src: "config.toml"
+      dest: "containerd/config.toml"
+    - src: "containerd.service"
+      dest: "systemd/system/containerd.service"
+  notify:
+    - "Restart containerd"
+
+- name: Start containerd
+  become: true
+  service:
+    name: "containerd"
+    state: "started"
+    daemon_reload: true
+...

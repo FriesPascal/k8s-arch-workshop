@@ -1,0 +1,94 @@
+# see https://kubernetes.io/docs/setup/best-practices/certificates/
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-apiserver
+  namespace: clt-0
+spec:
+  commonName: kube-apiserver
+  secretName: kube-apiserver
+  duration: 8760h0m0s
+  renewBefore: 120h0m0s
+  dnsNames:
+    - "kubernetes"
+    - "kubernetes.clt-1"
+    - "kubernetes.clt-1.svc"
+    - "kubernetes.clt-1.svc.cluster"
+    - "kubernetes.clt-1.svc.cluster.local"
+    - "kube-apiserver"
+    - "kube-apiserver.clt-1.svc.cluster.local"
+  ipAddresses:
+    - "10.32.0.1"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+  issuerRef:
+    name: kubernetes-ca
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: service-account-keys
+  namespace: clt-0
+spec:
+  commonName: service-account-keys
+  secretName: service-account-keys
+  duration: 87600h0m0s
+  renewBefore: 2160h0m0s
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - signing
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-apiserver-etcd-client
+  namespace: clt-0
+spec:
+  commonName: kube-apiserver-etcd-client
+  secretName: kube-apiserver-etcd-client
+  duration: 8760h0m0s
+  renewBefore: 120h0m0s
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - client auth
+  issuerRef:
+    name: etcd-ca
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-apiserver-kubelet-client
+  namespace: clt-0
+spec:
+  commonName: kube-apiserver-kubelet-client
+  secretName: kube-apiserver-kubelet-client
+  duration: 8760h0m0s
+  renewBefore: 120h0m0s
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  subject:
+    organizations:
+      - system:masters
+  usages:
+    - client auth
+  issuerRef:
+    name: kubernetes-ca
+    kind: Issuer
+    group: cert-manager.io

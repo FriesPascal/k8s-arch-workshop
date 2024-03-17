@@ -1,0 +1,43 @@
+[Unit]
+Description=kube apiserver
+Documentation=https://kubernetes.io
+After=network.target
+
+[Service]
+ExecStart=kube-apiserver \
+    --advertise-address={{ kubernetes_advertise_ip }} \
+    --allow-privileged=true \
+    --authorization-mode=Node,RBAC \
+    --bind-address=0.0.0.0 \
+    --client-ca-file=/etc/kubernetes/client-ca-cert.pem \
+    --endpoint-reconciler-type=lease \
+    --etcd-cafile=/etc/kubernetes/etcd-ca-cert.pem \
+    --etcd-certfile=/etc/kubernetes/etcd-client-cert.pem \
+    --etcd-keyfile=/etc/kubernetes/etcd-client-key.pem \
+    --etcd-servers=https://{{ kubernetes_etcd_host }}:2379 \
+    --event-ttl=2h \
+    --kubelet-certificate-authority=/etc/kubernetes/kubelet-ca-cert.pem \
+    --kubelet-client-certificate=/etc/kubernetes/kubelet-client-cert.pem \
+    --kubelet-client-key=/etc/kubernetes/kubelet-client-key.pem \
+    --kubelet-preferred-address-types=InternalIP \
+    --runtime-config=api/all=true \
+    --secure-port=6443 \
+    --service-account-key-file=/etc/kubernetes/service-account-cert.pem \
+    --service-account-signing-key-file=/etc/kubernetes/service-account-key.pem \
+    --service-account-issuer=https://kubernetes.default.svc.cluster.local \
+    --service-cluster-ip-range={{ kubernetes_service_cidr }} \
+    --service-node-port-range=30000-32767 \
+    --tls-cert-file=/etc/kubernetes/serving-cert.pem \
+    --tls-private-key-file=/etc/kubernetes/serving-key.pem \
+    --v=2
+Restart=always
+RestartSec=5
+Delegate=yes
+KillMode=process
+OOMScoreAdjust=-999
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

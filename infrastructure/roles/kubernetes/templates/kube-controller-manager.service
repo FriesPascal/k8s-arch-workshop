@@ -1,0 +1,32 @@
+[Unit]
+Description=kube controller manager
+Documentation=https://kubernetes.io
+After=network.target
+
+[Service]
+ExecStart=kube-controller-manager \
+    --allocate-node-cidrs=true \
+    --bind-address=0.0.0.0 \
+    --cluster-cidr={{ kubernetes_pod_cidr }} \
+    --cluster-name=kubernetes \
+    --cluster-signing-cert-file=/etc/kubernetes/client-ca-cert.pem \
+    --cluster-signing-key-file=/etc/kubernetes/client-ca-key.pem \
+    --kubeconfig=/etc/kubernetes/controller-manager.conf \
+    --leader-elect=true \
+    --root-ca-file=/etc/kubernetes/serving-ca-cert.pem \
+    --secure-port=10257 \
+    --service-account-private-key-file=/etc/kubernetes/service-account-key.pem \
+    --service-cluster-ip-range={{ kubernetes_service_cidr }} \
+    --use-service-account-credentials=true \
+    --v=2
+Restart=always
+RestartSec=5
+Delegate=yes
+KillMode=process
+OOMScoreAdjust=-999
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

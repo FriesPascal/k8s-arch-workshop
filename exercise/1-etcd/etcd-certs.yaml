@@ -1,0 +1,55 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-etcd-peer
+  namespace: clt-0
+spec:
+  dnsNames:
+    - "etcd"
+    - "etcd-hl"
+    - "*.etcd-hl"
+    - "etcd.clt-1.svc.cluster.local"
+    - "etcd-hl.clt-1.svc.cluster.local"
+    - "*.etcd-hl.clt-1.svc.cluster.local"
+  duration: 730h0m0s
+  issuerRef:
+    name: etcd-ca
+    kind: Issuer
+    group: cert-manager.io
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  renewBefore: 120h0m0s
+  secretName: kube-etcd-peer
+  commonName: kube-etcd-peer
+  usages:
+    - server auth
+    - client auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-etcd
+  namespace: clt-0
+spec:
+  dnsNames:
+    - "etcd"
+    - "etcd-hl"
+    - "*.etcd-hl"
+    - "etcd.clt-1.svc.cluster.local"
+    - "etcd-hl.clt-1.svc.cluster.local"
+    - "*.etcd-hl.clt-1.svc.cluster.local"
+  duration: 730h0m0s
+  issuerRef:
+    name: etcd-ca
+    kind: Issuer
+    group: cert-manager.io
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  renewBefore: 120h0m0s
+  secretName: kube-etcd
+  secretName: kube-etcd
+  usages:
+    - server auth
+    - client auth

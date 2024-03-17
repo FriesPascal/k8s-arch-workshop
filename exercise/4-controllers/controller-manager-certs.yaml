@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-controller-manager
+  namespace: clt-0
+spec:
+  commonName: system:kube-controller-manager
+  secretName: kube-controller-manager
+  duration: 8760h0m0s
+  renewBefore: 120h0m0s
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - client auth
+  issuerRef:
+    name: kubernetes-ca
+    kind: Issuer
+    group: cert-manager.io

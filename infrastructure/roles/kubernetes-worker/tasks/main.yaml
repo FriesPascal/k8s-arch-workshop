@@ -1,0 +1,155 @@
+- name: Install OS dependencies
+  become: true
+  apt:
+    name:
+      - "socat"
+      - "conntrack"
+      - "ipset"
+    state: present
+    update_cache: true
+
+- name: Disable swap for current session
+  become: true
+  command: "swapoff -a"
+  changed_when: false
+
+- name: Disable swap permanently, persist reboots
+  become: true
+  replace:
+    path: "/etc/fstab"
+    regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+    replace: '#\1\2\3swap\4'
+
+- name: Enable br_netfilter
+  become: true
+  lineinfile:
+    create: true
+    path: "/etc/modules-load.d/k8s.conf"
+    line: "br_netfilter"
+    state: "present"
+
+- name: Load br_netfilter
+  become: true
+  modprobe:
+    name: "br_netfilter"
+    state: "present"
+
+- name: Let iptables see bridged traffic
+  become: true
+  sysctl:
+    name: "{{ item }}"
+    value: '1'
+    state: "present"
+  loop:
+    - "net.bridge.bridge-nf-call-iptables"
+    - "net.bridge.bridge-nf-call-ip6tables"
+    - "net.ipv4.ip_forward"
+
+- name: Download binaries
+  become: true
+  get_url:
+    force: true
+    url: "https://dl.k8s.io/v{{ kubernetes_worker_version }}/bin/linux/amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  notify:
+    - "Restart kubernetes worker"
+  loop:
+  - kube-proxy
+  - kubelet
+
+- name: Prepare config dir
+  become: true
+  file:
+    state: "directory"
+    path: "/etc/kubernetes"
+    owner: "root"
+    group: "root"
+
+- name: Copy over kubelet certificates
+  become: true
+  copy:
+    src: "{{ item.src }}"
+    dest: "/etc/kubernetes/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "root"
+    group: "root"
+  loop:
+  - src: "{{ kubernetes_worker_kubelet_ca_cert_file }}"
+    dest: kubelet-client-ca-cert.pem
+    mode: "0644"
+  - src: "{{ kubernetes_worker_kubelet_cert_file }}"
+    dest: kubelet-serving-cert.pem
+    mode: "0644"
+  - src: "{{ kubernetes_worker_kubelet_key_file }}"
+    dest: kubelet-serving-key.pem
+    mode: "0600"
+  notify:
+    - "Restart kubernetes worker"
+
+- name: Copy over kubeconfigs
+  become: true
+  copy:
+    src: "{{ item.src }}"
+    dest: "/etc/kubernetes/{{ item.dest }}"
+    mode: "0600"
+    owner: "root"
+    group: "root"
+  loop:
+  - src: "{{ kubernetes_worker_kubelet_kubeconfig_file }}"
+    dest: kubelet.conf
+  - src: "{{ kubernetes_worker_kube_proxy_kubeconfig_file }}"
+    dest: kube-proxy.conf
+  notify:
+    - "Restart kubernetes worker"
+
+- name: Template config files
+  become: true
+  template:
+    src: "{{ item }}"
+    dest: "/etc/kubernetes/{{ item }}"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  loop:
+    - kubelet-config.yaml
+    - kube-proxy-config.yaml
+  notify:
+    - "Restart kubernetes worker"
+
+- name: Template cni config
+  become: true
+  template:
+    src: "10-kubernetes.conflist"
+    dest: "/etc/cni/net.d/10-kubernetes.conflist"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  when: kubernetes_worker_configure_cni
+
+- name: Template systemd unit files
+  become: true
+  template:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  loop:
+    - kube-proxy.service
+    - kubelet.service
+  notify:
+    - "Restart kubernetes worker"
+
+- name: Start services
+  become: true
+  service:
+    name: "{{ item }}"
+    state: "started"
+    daemon_reload: true
+    enabled: true
+  loop:
+    - kubelet
+    - kube-proxy

@@ -1,0 +1,6 @@
+- name: Restart containerd
+  become: true
+  service:
+    name: "containerd"
+    state: "restarted"      
+    daemon_reload: true

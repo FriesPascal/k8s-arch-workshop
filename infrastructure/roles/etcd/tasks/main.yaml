@@ -1,0 +1,81 @@
+---
+- name: Prepare etcd config and data dirs
+  become: true
+  file:
+    state: "directory"
+    path: "{{ item }}"
+    owner: "root"
+    group: "root"
+    recurse: true
+  loop:
+    - /etc/etcd
+    - /var/lib/etcd/data
+
+- name: Download binaries
+  get_url:
+    force: true
+    url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/etcd.tar.gz"
+    mode: "0644"
+
+- name: Extract binaries
+  become: true
+  unarchive:
+    src: "/tmp/etcd.tar.gz"
+    dest: "/usr/local/bin/"
+    remote_src: true
+    owner: "root"
+    group: "root"
+    extra_opts:
+      - "--strip-components=1"
+  notify:
+    - "Restart etcd"
+
+- name: Copy over certificates
+  become: true
+  copy:
+    src: "{{ item.src }}"
+    dest: "/etc/etcd/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "root"
+    group: "root"
+  loop:
+  - src: "{{ etcd_ca_cert_file }}"
+    dest: ca-cert.pem
+    mode: "0644"
+  - src: "{{ etcd_cert_file }}"
+    dest: cert.pem
+    mode: "0644"
+  - src: "{{ etcd_key_file }}"
+    dest: key.pem
+    mode: "0600"
+  - src: "{{ etcd_peer_ca_cert_file }}"
+    dest: peer-ca-cert.pem
+    mode: "0644"
+  - src: "{{ etcd_peer_cert_file }}"
+    dest: peer-cert.pem
+    mode: "0644"
+  - src: "{{ etcd_peer_key_file }}"
+    dest: peer-key.pem
+    mode: "0600"
+  notify:
+    - "Restart etcd"
+
+- name: Template etcd systemd unit
+  become: true
+  template:
+    src: "etcd.service"
+    dest: "/etc/systemd/system/etcd.service"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  notify:
+    - "Restart etcd"
+
+- name: Enable and start etcd
+  become: true
+  service:
+    name: "etcd"
+    state: "started"
+    enabled: true
+    daemon_reload: true

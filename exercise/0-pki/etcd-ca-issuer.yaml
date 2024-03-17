@@ -1,0 +1,31 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: etcd-ca
+  namespace: clt-0
+spec:
+  isCA: true
+  commonName: etcd-ca
+  secretName: etcd-ca
+  # valid 10 years
+  duration: 87600h0m0s
+  # renew 90 days before end
+  renewBefore: 2160h0m0s
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - cert sign
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: etcd-ca
+  namespace: clt-0
+spec:
+  ca:
+    secretName: etcd-ca
